@@ -126,4 +126,14 @@ describe(Localization, (): void => {
     expect(localization.translate('foo.bar.baz')).toEqual('missing <foo.bar.baz>')
     expect(localization.translate('name', { name: 'John', emoji: '👋' })).toEqual('missing <name>')
   })
+
+  it('emits an event when the locale is changed', (): void => {
+    const localization = new Localization(dictionary)
+    const callback = jest.fn()
+
+    localization.on('locale', callback)
+    localization.setLocale('es-MX')
+
+    expect(callback).toHaveBeenCalledWith('es-MX', { hello: 'Que onda', world: 'Mundo', name: { hello: 'Que onda {{name}} {{emoji}}' } })
+  })
 })

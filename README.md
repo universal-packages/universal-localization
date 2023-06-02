@@ -109,7 +109,7 @@ When the locale changes, the instance will emit the event, useful to subscribe t
 ```js
 const localization = new Localization(dictionary)
 
-localization.on('change', (locale, localeDictionary) => console.log('Localization changed'))
+localization.on('locale', (locale, localeDictionary) => console.log('Localization changed'))
 ```
 
 ## Typescript

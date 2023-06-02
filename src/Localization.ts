@@ -5,7 +5,7 @@ import EventEmitter from 'events'
 import { Locale, LocalizationDictionary } from './types'
 
 export default class Localization extends EventEmitter {
-  public locale: string
+  public locale: Locale
 
   private readonly dictionary: LocalizationDictionary
   private localeDictionary: Record<string, any> = {}
@@ -31,21 +31,21 @@ export default class Localization extends EventEmitter {
 
       if (dictionaryFromLanguage) {
         this.localeDictionary = dictionaryFromLanguage as any
-        this.locale = language
+        this.locale = language as Locale
       } else {
         const availableLocales = Object.keys(this.dictionary)
         const closestLocale = availableLocales.find((locale) => locale.startsWith(language)) || availableLocales[0]
 
         if (closestLocale) {
           this.localeDictionary = this.dictionary[closestLocale] as any
-          this.locale = closestLocale
+          this.locale = closestLocale as Locale
         } else {
           this.localeDictionary = {}
         }
       }
     }
 
-    this.emit('changed', this.locale, this.localeDictionary)
+    this.emit('locale', this.locale, this.localeDictionary)
   }
 
   public translate(subject: string | string[], locales?: Record<string, any>): string {
