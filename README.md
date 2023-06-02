@@ -1,6 +1,6 @@
 # Localization
 
-[![npm version](https://badge.fury.io/js/@universal-packages%2Fstate.svg)](https://www.npmjs.com/package/@universal-packages/localization)
+[![npm version](https://badge.fury.io/js/@universal-packages%2Flocalization.svg)](https://www.npmjs.com/package/@universal-packages/localization)
 [![Testing](https://github.com/universal-packages/universal-localization/actions/workflows/testing.yml/badge.svg)](https://github.com/universal-packages/universal-localization/actions/workflows/testing.yml)
 [![codecov](https://codecov.io/gh/universal-packages/universal-localization/branch/main/graph/badge.svg?token=CXPJSN8IGL)](https://codecov.io/gh/universal-packages/universal-localization)
 
