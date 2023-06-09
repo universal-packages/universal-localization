@@ -14,89 +14,72 @@ npm install @universal-packages/localization
 
 ## Localization
 
-Localization class is the high level representation of the localization object, it provides all tools related to modify and read from localization.
+Localization class is the high level representation of the localization object, it provides tools to internationalize your app.
 
 ```js
 import { Localization } from '@universal-packages/localization'
 
-const dictionary: LocalizationDictionary = {
-  en: {
-    hello: 'Hello',
-    world: 'World',
-    name: {
-      hello: 'Hello {{name}} {{emoji}}'
-    }
-  },
-  'en-US': {
-    hello: 'Howdy',
-    world: 'World',
-    name: {
-      hello: 'Howdy {{name}} {{emoji}}'
-    }
-  },
-  es: {
-    hello: 'Hola',
-    world: 'Mundo',
-    name: {
-      hello: 'Hola {{name}} {{emoji}}'
-    }
-  },
-  'es-MX': {
-    hello: 'Que onda',
-    world: 'Mundo',
-    name: {
-      hello: 'Que onda {{name}} {{emoji}}'
-    }
-  },
-  'fr-CM': {
-    hello: 'Bonjour',
-    world: 'Monde',
-    name: {
-      hello: 'Bonjour {{name}} {{emoji}}'
-    }
-  }
-}
-
-const localization = new Localization(dictionary)
+const localization = new Localization()
 
 console.log(localization.translate('hello'))
 //> Hello
 console.log(localization.translate('world'))
 //> World
-console.log(localization.translate('name.hello', { name: 'John', emoji: '👋' }))
+console.log(localization.translate('name.hello', null, { name: 'John', emoji: '👋' }))
 //> Hello John 👋
 
-localization.setLocale('en-US')
-console.log(localization.translate('hello'))
+console.log(localization.translate('hello', 'en-US'))
 //> Howdy
-console.log(localization.translate('world'))
+console.log(localization.translate('world', 'en-US'))
 //> World
-console.log(localization.translate('name.hello', { name: 'John', emoji: '👋' }))
+console.log(localization.translate('name.hello', 'en-US', { name: 'John', emoji: '👋' }))
 //> Howdy John 👋
 
-localization.setLocale('es')
-console.log(localization.translate('hello'))
+console.log(localization.translate('hello', 'es'))
 //> Hola
-console.log(localization.translate('world'))
+console.log(localization.translate('world', 'es'))
 //> Mundo
-console.log(localization.translate('name.hello', { name: 'Juan', emoji: '👋' }))
+console.log(localization.translate('name.hello', 'es', { name: 'Juan', emoji: '👋' }))
 //> Hola Juan 👋
 
-localization.setLocale('es-MX')
-console.log(localization.translate('hello'))
+console.log(localization.translate('hello', 'es-MX'))
 //> Que onda
-console.log(localization.translate('world'))
+console.log(localization.translate('world', 'es-MX'))
 //> Mundo
-console.log(localization.translate('name.hello', { name: 'Juanito', emoji: '👋' }))
+console.log(localization.translate('name.hello', 'es-MX', { name: 'Juanito', emoji: '👋' }))
 //> Que onda Juanito 👋
 ```
 
+### Options
+
+- **`dictionary`** `LocalizationDictionary`
+  The dictionary to use for the localization, in case you aleady have a dictionary, you can pass it here.
+- **`useFileName`** `boolean` `default: true`
+  If you want your translations to be namespaced by the name of the file they are in, you can set this to true.
+- **`localizationsLocation`** `string` `default: './src`
+  The path to the folder where the localizations are located. Files can be `json`, `yaml`, `js`, `ts` and can be nested deeply in the folder structure and should be prefixed with the locale they are for alongside `local`
+  ```
+  - src
+    |- general.en-US.local.yaml
+    |- general.es-MX.local.yaml
+    |- mailers
+      |- welcome.en-US.local.yaml
+      |- welcome.es-MX.local.yaml
+    |- pages
+      |- home.en-US.local.yaml
+      |- home.es-MX.local.yaml
+  ```
+- **`defaultLocale`** `Locale` `default: 'en`
+  The default locale to use when no locale is provided.
+
 ### Instance methods
 
-#### **`.translate(subject: string | string[], [locales: Object])`**
+#### **`.translate(subject: string | string[], locale: string, [locales: Object])`**
 
 - **`subject`** `string | string[]`
   The path to the translation you want to get, Use dot notation to access nested translations or an array of string.
+- **`locale`** `string`
+  A valid locale string, it will be used to look for the translation in the dictionary.
 - **`locales`** `Object`
   If the target translation needs variables to be replaced, you can pass them as an object here. use `{{ <variableName> }}` in the translation to indicate where the variable should be placed.
 
@@ -104,12 +87,13 @@ Looks for a translation in the current locale, if it doesn’t find it, it will 
 
 ## Events
 
-When the locale changes, the instance will emit the event, useful to subscribe to locale changes form other places of the app agnostic to the origin change.
+Warning and errors related to missing dictionaries and translations are emitted as events.
 
 ```js
-const localization = new Localization(dictionary)
+const localization = new Localization()
 
-localization.on('locale', (locale, localeDictionary) => console.log('Localization changed'))
+localization.on('waring', (warning) => console.log(warning))
+localization.on('error', (error) => console.log(error))
 ```
 
 ## Typescript

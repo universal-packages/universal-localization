@@ -1,57 +1,102 @@
+import { loadConfig } from '@universal-packages/config-loader'
+import { checkDirectory } from '@universal-packages/fs-utils'
+import { mapObject } from '@universal-packages/object-mapper'
 import { navigateObject } from '@universal-packages/object-navigation'
 import { replaceVars } from '@universal-packages/variable-replacer'
 import EventEmitter from 'events'
 
-import { Locale, LocalizationDictionary } from './types'
+import { Locale, LocalizationDictionary, LocalizationOptions } from './types'
 
 export default class Localization extends EventEmitter {
-  public locale: Locale
+  public readonly options: LocalizationOptions
+  public readonly dictionary: LocalizationDictionary = {}
 
-  private readonly dictionary: LocalizationDictionary
-  private localeDictionary: Record<string, any> = {}
-  private defaultLocale: Locale
-
-  constructor(dictionary: LocalizationDictionary, defaultLocale?: Locale) {
+  constructor(options?: LocalizationOptions) {
     super()
-    this.dictionary = { ...dictionary }
-    this.defaultLocale = defaultLocale || 'en'
-    this.setLocale(this.defaultLocale)
+
+    this.options = { defaultLocale: 'en', useFileName: true, localizationsLocation: './src', ...options }
   }
 
-  public setLocale(locale?: Locale): void {
-    this.locale = locale ? locale : this.defaultLocale
+  public async prepare(): Promise<void> {
+    const finalPath = checkDirectory(this.options.localizationsLocation)
+    const config = await loadConfig(finalPath, { conventionPrefix: 'local' })
 
-    const dictionaryFromLocale = this.dictionary[this.locale]
+    mapObject(config, null, (value: Record<string, any>, key: string): boolean => {
+      if (key.match(/.*\.local$/)) {
+        const parts = key.split('.')
+        const isLocaleFromFilerName = parts[parts.length - 2].match(/^(..|..\-..)$/)
 
-    if (dictionaryFromLocale) {
-      this.localeDictionary = dictionaryFromLocale as any
-    } else {
-      const language = this.locale.split('-')[0]
+        if (isLocaleFromFilerName) {
+          const localeFromFilerName = parts[parts.length - 2]
+
+          if (!this.dictionary[localeFromFilerName]) this.dictionary[localeFromFilerName] = {}
+
+          if (this.options.useFileName) {
+            const keyFromFileName = parts.splice(0, parts.length - 2).join('.')
+
+            if (!this.dictionary[localeFromFilerName][keyFromFileName]) this.dictionary[localeFromFilerName][keyFromFileName] = {}
+
+            this.dictionary[localeFromFilerName][keyFromFileName] = { ...this.dictionary[localeFromFilerName][keyFromFileName], ...value }
+          } else {
+            this.dictionary[localeFromFilerName] = { ...this.dictionary[localeFromFilerName], ...value }
+          }
+        } else {
+          const locales = Object.keys(value)
+
+          for (let i = 0; i < locales.length; i++) {
+            const currentLocale = locales[i]
+
+            if (currentLocale.match(/^(..|..\-..)$/)) {
+              if (!this.dictionary[currentLocale]) this.dictionary[currentLocale] = {}
+
+              this.dictionary[currentLocale] = { ...this.dictionary[currentLocale], ...value[currentLocale] }
+            } else {
+              this.emit('error', `Invalid locale "${currentLocale}" coming from "${key}"`)
+            }
+          }
+        }
+
+        return false
+      }
+    })
+  }
+
+  public translate(subject: string | string[], locale?: Locale, locales?: Record<string, any>): string {
+    const finalLocale = locale ? locale : this.options.defaultLocale
+
+    let localeDictionary: Record<string, any> = this.dictionary[finalLocale]
+
+    if (!localeDictionary) {
+      const language = finalLocale.split('-')[0]
       const dictionaryFromLanguage = this.dictionary[language]
 
       if (dictionaryFromLanguage) {
-        this.localeDictionary = dictionaryFromLanguage as any
-        this.locale = language as Locale
+        localeDictionary = dictionaryFromLanguage
+
+        this.emit('warning', `Missing locale "${finalLocale}", using "${language}" instead for "${subject}"`)
       } else {
         const availableLocales = Object.keys(this.dictionary)
         const closestLocale = availableLocales.find((locale) => locale.startsWith(language)) || availableLocales[0]
 
         if (closestLocale) {
-          this.localeDictionary = this.dictionary[closestLocale] as any
-          this.locale = closestLocale as Locale
+          localeDictionary = this.dictionary[closestLocale]
+
+          this.emit('warning', `Missing locale "${finalLocale}", using "${closestLocale}" instead for "${subject}"`)
         } else {
-          this.localeDictionary = {}
+          localeDictionary = {}
+
+          this.emit('error', `Missing locale <${finalLocale}> and no fallback found for it`)
         }
       }
     }
 
-    this.emit('locale', this.locale, this.localeDictionary)
-  }
+    const pathInfo = navigateObject(localeDictionary, subject, { separator: '.' })
 
-  public translate(subject: string | string[], locales?: Record<string, any>): string {
-    const pathInfo = navigateObject(this.localeDictionary, subject, { separator: '.' })
+    if (pathInfo.error) {
+      this.emit('warning', `Missing translation for "${subject}" in "${finalLocale}"`)
 
-    if (pathInfo.error) return `missing <${pathInfo.path}>`
+      return `missing <${pathInfo.path}>`
+    }
 
     const found = pathInfo.targetNode[pathInfo.targetKey]
 
@@ -60,6 +105,8 @@ export default class Localization extends EventEmitter {
 
       return found
     } else {
+      this.emit('warning', `Missing translation for "${subject}" in "${finalLocale}"`)
+
       return `missing <${pathInfo.path}>`
     }
   }

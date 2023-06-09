@@ -1,5 +1,12 @@
 export type LocalizationDictionary = Partial<Record<Locale, any>>
 
+export interface LocalizationOptions {
+  dictionary?: LocalizationDictionary
+  useFileName?: boolean
+  localizationsLocation?: string
+  defaultLocale?: Locale
+}
+
 export type Locale =
   | 'ar'
   | 'ar-AE'
