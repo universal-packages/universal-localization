@@ -1,4 +1,4 @@
-import { Localization, LocalizationDictionary } from '../src'
+import { Localization } from '../src'
 
 describe(Localization, (): void => {
   it('loads the dictionary', async (): Promise<void> => {
