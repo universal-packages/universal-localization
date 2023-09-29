@@ -56,7 +56,7 @@ console.log(localization.translate('name.hello', 'es-MX', { name: 'Juanito', emo
   The dictionary to use for the localization, in case you aleady have a dictionary, you can pass it here.
 - **`useFileName`** `boolean` `default: true`
   If you want your translations to be namespaced by the name of the file they are in, you can set this to true.
-- **`localizationsLocation`** `string` `default: './src`
+- **`localizationsLocation`** `string` `default: './src'`
   The path to the folder where the localizations are located. Files can be `json`, `yaml`, `js`, `ts` and can be nested deeply in the folder structure and should be prefixed with the locale they are for alongside `local`
   ```
   - src
