@@ -16,7 +16,7 @@
     "update-dependents": "umaintenance update-dependents"
   },
   "dependencies": {
-    "@universal-packages/config-loader": "^1.10.1",
+    "@universal-packages/config-loader": "^1.11.0",
     "@universal-packages/object-navigation": "^1.0.0",
     "@universal-packages/variable-replacer": "^1.2.0"
   },
