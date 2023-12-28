@@ -1,9 +1,9 @@
 import { loadConfig } from '@universal-packages/config-loader'
+import { EventEmitter } from '@universal-packages/event-emitter'
 import { checkDirectory } from '@universal-packages/fs-utils'
 import { mapObject } from '@universal-packages/object-mapper'
 import { navigateObject } from '@universal-packages/object-navigation'
 import { replaceVars } from '@universal-packages/variable-replacer'
-import EventEmitter from 'events'
 
 import { Locale, LocalizationDictionary, LocalizationOptions } from './types'
 
@@ -51,7 +51,7 @@ export default class Localization extends EventEmitter {
 
               this.dictionary[currentLocale] = { ...this.dictionary[currentLocale], ...value[currentLocale] }
             } else {
-              this.emit('error', `Invalid locale "${currentLocale}" coming from "${key}"`)
+              this.emit('error', { error: new Error(`Invalid locale "${currentLocale}" coming from "${key}"`) })
             }
           }
         }
@@ -73,7 +73,7 @@ export default class Localization extends EventEmitter {
       if (dictionaryFromLanguage) {
         localeDictionary = dictionaryFromLanguage
 
-        this.emit('warning', `Missing locale "${finalLocale}", using "${language}" instead for "${subject}"`)
+        this.emit('warning', { message: `Missing locale "${finalLocale}", using "${language}" instead for "${subject}"` })
       } else {
         const availableLocales = Object.keys(this.dictionary)
         const closestLocale = availableLocales.find((locale) => locale.startsWith(language)) || availableLocales[0]
@@ -81,11 +81,11 @@ export default class Localization extends EventEmitter {
         if (closestLocale) {
           localeDictionary = this.dictionary[closestLocale]
 
-          this.emit('warning', `Missing locale "${finalLocale}", using "${closestLocale}" instead for "${subject}"`)
+          this.emit('warning', { message: `Missing locale "${finalLocale}", using "${closestLocale}" instead for "${subject}"` })
         } else {
           localeDictionary = {}
 
-          this.emit('error', `Missing locale <${finalLocale}> and no fallback found for it`)
+          this.emit('error', { error: new Error(`Missing locale <${finalLocale}> and no fallback found for it`) })
         }
       }
     }
@@ -93,7 +93,7 @@ export default class Localization extends EventEmitter {
     const pathInfo = navigateObject(localeDictionary, subject, { separator: '.' })
 
     if (pathInfo.error) {
-      this.emit('warning', `Missing translation for "${subject}" in "${finalLocale}"`)
+      this.emit('warning', { message: `Missing translation for "${subject}" in "${finalLocale}"` })
 
       return `missing <${pathInfo.path}>`
     }
@@ -105,7 +105,7 @@ export default class Localization extends EventEmitter {
 
       return found
     } else {
-      this.emit('warning', `Missing translation for "${subject}" in "${finalLocale}"`)
+      this.emit('warning', { message: `Missing translation for "${subject}" in "${finalLocale}"` })
 
       return `missing <${pathInfo.path}>`
     }

@@ -38,9 +38,9 @@ describe(Localization, (): void => {
     await localization.prepare()
 
     expect(errorMock.mock.calls).toEqual([
-      ['Invalid locale "hello" coming from "first.local"'],
-      ['Invalid locale "world" coming from "first.local"'],
-      ['Invalid locale "name" coming from "first.local"']
+      [{ event: 'error', error: new Error('Invalid locale "hello" coming from "first.local"') }],
+      [{ event: 'error', error: new Error('Invalid locale "world" coming from "first.local"') }],
+      [{ event: 'error', error: new Error('Invalid locale "name" coming from "first.local"') }]
     ])
   })
 
@@ -88,12 +88,12 @@ describe(Localization, (): void => {
     expect(localization.translate('first.name.hello', 'es-AR', { name: 'Juan', emoji: '👋' })).toEqual('Hola Juan 👋')
 
     expect(warningMock.mock.calls).toEqual([
-      ['Missing locale "fr", using "fr-CM" instead for "first.hello"'],
-      ['Missing locale "fr", using "fr-CM" instead for "first.world"'],
-      ['Missing locale "fr", using "fr-CM" instead for "first.name.hello"'],
-      ['Missing locale "es-AR", using "es" instead for "first.hello"'],
-      ['Missing locale "es-AR", using "es" instead for "first.world"'],
-      ['Missing locale "es-AR", using "es" instead for "first.name.hello"']
+      [{ event: 'warning', message: 'Missing locale "fr", using "fr-CM" instead for "first.hello"' }],
+      [{ event: 'warning', message: 'Missing locale "fr", using "fr-CM" instead for "first.world"' }],
+      [{ event: 'warning', message: 'Missing locale "fr", using "fr-CM" instead for "first.name.hello"' }],
+      [{ event: 'warning', message: 'Missing locale "es-AR", using "es" instead for "first.hello"' }],
+      [{ event: 'warning', message: 'Missing locale "es-AR", using "es" instead for "first.world"' }],
+      [{ event: 'warning', message: 'Missing locale "es-AR", using "es" instead for "first.name.hello"' }]
     ])
   })
 
@@ -110,9 +110,9 @@ describe(Localization, (): void => {
     expect(localization.translate('first.name.hello', 'ar', { name: 'John', emoji: '👋' })).toEqual('Howdy John 👋')
 
     expect(warningMock.mock.calls).toEqual([
-      ['Missing locale "ar", using "en-US" instead for "first.hello"'],
-      ['Missing locale "ar", using "en-US" instead for "first.world"'],
-      ['Missing locale "ar", using "en-US" instead for "first.name.hello"']
+      [{ event: 'warning', message: 'Missing locale "ar", using "en-US" instead for "first.hello"' }],
+      [{ event: 'warning', message: 'Missing locale "ar", using "en-US" instead for "first.world"' }],
+      [{ event: 'warning', message: 'Missing locale "ar", using "en-US" instead for "first.name.hello"' }]
     ])
   })
 
@@ -130,10 +130,10 @@ describe(Localization, (): void => {
     expect(localization.translate('name', null, { name: 'John', emoji: '👋' })).toEqual('missing <name>')
 
     expect(warningMock.mock.calls).toEqual([
-      ['Missing translation for "foo" in "en"'],
-      ['Missing translation for "foo.bar" in "en"'],
-      ['Missing translation for "foo.bar.baz" in "en"'],
-      ['Missing translation for "name" in "en"']
+      [{ event: 'warning', message: 'Missing translation for "foo" in "en"' }],
+      [{ event: 'warning', message: 'Missing translation for "foo.bar" in "en"' }],
+      [{ event: 'warning', message: 'Missing translation for "foo.bar.baz" in "en"' }],
+      [{ event: 'warning', message: 'Missing translation for "name" in "en"' }]
     ])
   })
 })

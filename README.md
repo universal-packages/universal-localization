@@ -92,8 +92,8 @@ Warning and errors related to missing dictionaries and translations are emitted 
 ```js
 const localization = new Localization()
 
-localization.on('waring', (warning) => console.log(warning))
-localization.on('error', (error) => console.log(error))
+localization.on('waring', (event) => console.log(event))
+localization.on('error', (event) => console.log(event))
 ```
 
 ## Typescript
