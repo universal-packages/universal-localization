@@ -17,9 +17,9 @@ export default class Localization extends EventEmitter {
     this.options = { defaultLocale: 'en', useFileName: true, localizationsLocation: './src', ...options }
   }
 
-  public async prepare(): Promise<void> {
+  public prepare(): void {
     const finalPath = checkDirectory(this.options.localizationsLocation)
-    const config = await loadConfig(finalPath, { conventionPrefix: 'local' })
+    const config = loadConfig(finalPath, { conventionPrefix: 'local' })
 
     mapObject(config, null, (value: Record<string, any>, key: string): boolean => {
       if (key.match(/.*\.local$/)) {

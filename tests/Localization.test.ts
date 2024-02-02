@@ -4,7 +4,7 @@ describe(Localization, (): void => {
   it('loads the dictionary', async (): Promise<void> => {
     const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
 
-    await localization.prepare()
+    localization.prepare()
 
     expect(localization.dictionary).toEqual({
       en: { first: { hello: 'Hello', world: 'World', name: { hello: 'Hello {{name}} {{emoji}}' } }, second: { door: 'Door' }, light: 'Light' },
@@ -18,7 +18,7 @@ describe(Localization, (): void => {
   it('loads the dictionary ignoring file name as root key', async (): Promise<void> => {
     const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good', useFileName: false })
 
-    await localization.prepare()
+    localization.prepare()
 
     expect(localization.dictionary).toEqual({
       en: { hello: 'Hello', world: 'World', name: { hello: 'Hello {{name}} {{emoji}}' }, door: 'Door', light: 'Light' },
@@ -35,7 +35,7 @@ describe(Localization, (): void => {
 
     localization.on('error', errorMock)
 
-    await localization.prepare()
+    localization.prepare()
 
     expect(errorMock.mock.calls).toEqual([
       [{ event: 'error', error: new Error('Invalid locale "hello" coming from "first.local"') }],
@@ -47,7 +47,7 @@ describe(Localization, (): void => {
   it('translates by using the default or use the provided one', async (): Promise<void> => {
     const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
 
-    await localization.prepare()
+    localization.prepare()
 
     expect(localization.options.defaultLocale).toEqual('en')
     expect(localization.translate('first.hello')).toEqual('Hello')
@@ -71,7 +71,7 @@ describe(Localization, (): void => {
     const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
     const warningMock = jest.fn()
 
-    await localization.prepare()
+    localization.prepare()
 
     localization.on('warning', warningMock)
 
@@ -101,7 +101,7 @@ describe(Localization, (): void => {
     const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
     const warningMock = jest.fn()
 
-    await localization.prepare()
+    localization.prepare()
 
     localization.on('warning', warningMock)
 
@@ -120,7 +120,7 @@ describe(Localization, (): void => {
     const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
     const warningMock = jest.fn()
 
-    await localization.prepare()
+    localization.prepare()
 
     localization.on('warning', warningMock)
 
