@@ -1,10 +1,27 @@
-export type LocalizationDictionary = Partial<Record<Locale, any>>
+export type Translation = string
+export type LocaleTranslations = Partial<Record<Locale, Translation>>
 
-export interface LocalizationOptions {
-  dictionary?: LocalizationDictionary
-  useFileName?: boolean
-  localizationsLocation?: string
+export type Dictionary<T = any> = {
+  [K in keyof T]: T[K] extends Record<Locale, string> ? LocaleTranslations : Dictionary<T[K]>
+}
+
+export type MergedDictionary<T, S = {}> = Dictionary<T & S>
+
+export interface LocalizationOptions<T = any, S = {}> {
+  primaryDictionary: Dictionary<T>
+  secondaryDictionary?: Dictionary<S>
   defaultLocale?: Locale
+}
+
+export type TemplateVariables = Record<string, string | number | boolean>
+
+export type TranslateFunction = {
+  (): string
+  (variables: TemplateVariables): string
+}
+
+export type TranslationProxy<T, S = {}> = TranslateFunction & {
+  [K in keyof (T & S)]: (T & S)[K] extends Record<Locale, string> ? TranslateFunction : TranslationProxy<(T & S)[K]>
 }
 
 export type Locale =

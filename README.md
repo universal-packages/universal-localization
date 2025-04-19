@@ -4,7 +4,7 @@
 [![Testing](https://github.com/universal-packages/universal-localization/actions/workflows/testing.yml/badge.svg)](https://github.com/universal-packages/universal-localization/actions/workflows/testing.yml)
 [![codecov](https://codecov.io/gh/universal-packages/universal-localization/branch/main/graph/badge.svg?token=CXPJSN8IGL)](https://codecov.io/gh/universal-packages/universal-localization)
 
-Dynamic localization with fallbacks and variable replacement.
+Type-safe localization with smart locale fallbacks and variable replacement.
 
 ## Install
 
@@ -14,87 +14,167 @@ npm install @universal-packages/localization
 
 ## Localization
 
-Localization class is the high level representation of the localization object, it provides tools to internationalize your app.
+Localization class provides type-safe internationalization for your application with an intuitive, object-oriented API.
 
 ```js
 import { Localization } from '@universal-packages/localization'
 
-const localization = new Localization()
+const primaryDictionary = {
+  hello: {
+    en: 'Hello',
+    'en-US': 'Howdy',
+    es: 'Hola',
+    'es-MX': 'Que onda'
+  },
+  world: {
+    en: 'World',
+    es: 'Mundo'
+  },
+  name: {
+    hello: {
+      en: 'Hello {{name}} {{emoji}}',
+      'en-US': 'Howdy {{name}} {{emoji}}',
+      es: 'Hola {{name}} {{emoji}}',
+      'es-MX': 'Que onda {{name}} {{emoji}}'
+    }
+  }
+}
 
-console.log(localization.translate('hello'))
+const localization = new Localization({ primaryDictionary })
+
+// Use the default locale (en)
+console.log(localization.translate.hello())
 //> Hello
-console.log(localization.translate('world'))
+console.log(localization.translate.world())
 //> World
-console.log(localization.translate('name.hello', null, { name: 'John', emoji: '👋' }))
+console.log(localization.translate.name.hello({ name: 'John', emoji: '👋' }))
 //> Hello John 👋
 
-console.log(localization.translate('hello', 'en-US'))
+// Change locale
+localization.setLocale('en-US')
+console.log(localization.translate.hello())
 //> Howdy
-console.log(localization.translate('world', 'en-US'))
-//> World
-console.log(localization.translate('name.hello', 'en-US', { name: 'John', emoji: '👋' }))
+console.log(localization.translate.world())
+//> World (falls back to 'en' when 'en-US' not available)
+console.log(localization.translate.name.hello({ name: 'John', emoji: '👋' }))
 //> Howdy John 👋
 
-console.log(localization.translate('hello', 'es'))
+// Use Spanish locale
+localization.setLocale('es')
+console.log(localization.translate.hello())
 //> Hola
-console.log(localization.translate('world', 'es'))
+console.log(localization.translate.world())
 //> Mundo
-console.log(localization.translate('name.hello', 'es', { name: 'Juan', emoji: '👋' }))
+console.log(localization.translate.name.hello({ name: 'Juan', emoji: '👋' }))
 //> Hola Juan 👋
 
-console.log(localization.translate('hello', 'es-MX'))
+// Use Mexican Spanish locale
+localization.setLocale('es-MX')
+console.log(localization.translate.hello())
 //> Que onda
-console.log(localization.translate('world', 'es-MX'))
-//> Mundo
-console.log(localization.translate('name.hello', 'es-MX', { name: 'Juanito', emoji: '👋' }))
+console.log(localization.translate.world())
+//> Mundo (falls back to 'es' when 'es-MX' not available)
+console.log(localization.translate.name.hello({ name: 'Juanito', emoji: '👋' }))
 //> Que onda Juanito 👋
 ```
 
 ### Options
 
-- **`dictionary`** `LocalizationDictionary`
-  The dictionary to use for the localization, in case you aleady have a dictionary, you can pass it here.
-- **`useFileName`** `boolean` `default: true`
-  If you want your translations to be namespaced by the name of the file they are in, you can set this to true.
-- **`localizationsLocation`** `string` `default: './src'`
-  The path to the folder where the localizations are located. Files can be `json`, `yaml`, `js`, `ts` and can be nested deeply in the folder structure and should be prefixed with the locale they are for alongside `local`
-  ```
-  - src
-    |- general.en-US.local.yaml
-    |- general.es-MX.local.yaml
-    |- mailers
-      |- welcome.en-US.local.yaml
-      |- welcome.es-MX.local.yaml
-    |- pages
-      |- home.en-US.local.yaml
-      |- home.es-MX.local.yaml
-  ```
-- **`defaultLocale`** `Locale` `default: 'en`
-  The default locale to use when no locale is provided.
+- **`primaryDictionary`** `Dictionary<T>` (required)
+  The main dictionary containing all your translations.
+- **`secondaryDictionary`** `Dictionary<S>` (optional)
+  Additional translations that will be merged with the primary dictionary.
+- **`defaultLocale`** `Locale` (optional, default: 'en')
+  The default locale to use when instance is created. You can change the locale later using the `.setLocale(locale: Locale)` method.
+
+### Dictionary Structure
+
+Dictionaries should be structured as nested objects with translations at the leaf nodes:
+
+```js
+const dictionary = {
+  // Simple key
+  hello: {
+    en: 'Hello',
+    es: 'Hola'
+  },
+  // Nested keys
+  dashboard: {
+    welcome: {
+      en: 'Welcome to the dashboard',
+      es: 'Bienvenido al panel'
+    },
+    stats: {
+      users: {
+        en: '{{count}} users',
+        es: '{{count}} usuarios'
+      }
+    }
+  }
+}
+```
+
+### Locale Fallback Strategy
+
+The Localization class implements a smart fallback strategy when a requested locale doesn't exist:
+
+1. If the exact locale exists (e.g., 'en-US'), it will be used
+2. If not, it falls back to the base language (e.g., 'en' from 'en-US')
+3. If the base language doesn't exist, it falls back to any variant of that language (e.g., 'en-GB')
+4. If no variants exist, it falls back to any available locale
 
 ### Instance methods
 
-#### **`.translate(subject: string | string[], locale: string, [locales: Object])`**
+#### **`.setLocale(locale: Locale)`**
 
-- **`subject`** `string | string[]`
-  The path to the translation you want to get, Use dot notation to access nested translations or an array of string.
 - **`locale`** `string`
-  A valid locale string, it will be used to look for the translation in the dictionary.
-- **`locales`** `Object`
-  If the target translation needs variables to be replaced, you can pass them as an object here. use `{{ <variableName> }}` in the translation to indicate where the variable should be placed.
+  Sets the active locale. The fallback strategy is applied if the exact locale is not available.
 
-Looks for a translation in the current locale, if it doesn’t find it, it will look for it in the fallback locale, if it doesn’t find it there either, it will return the subject.
+#### **`.translate`**
+
+The `translate` property is a proxy that mirrors your dictionary structure with functions at the leaf nodes:
+
+```js
+// Access simple key
+localization.translate.hello()
+
+// Access nested key
+localization.translate.dashboard.welcome()
+
+// With variable substitution
+localization.translate.dashboard.stats.users({ count: 42 })
+```
+
+### Static methods
+
+#### **`Localization.inferDefault(options: LocalizationOptions)`**
+
+Returns the default locale that would be selected based on the provided options, without creating a full Localization instance. This is useful when you need to know what locale will be used without instantiating the full class.
+
+```js
+const locale = Localization.inferDefault({
+  primaryDictionary,
+  defaultLocale: 'fr'
+})
+console.log(locale) // 'fr' if available, or follows fallback strategy
+```
 
 ## Events
 
-Warning and errors related to missing dictionaries and translations are emitted as events.
+The Localization class extends EventEmitter and emits warnings for missing translations and other issues:
 
 ```js
-const localization = new Localization()
+const localization = new Localization({ primaryDictionary })
 
-localization.on('waring', (event) => console.log(event))
-localization.on('error', (event) => console.log(event))
+localization.on('warning', (event) => console.log(event.message))
 ```
+
+Example warning events:
+
+- Missing translations for specific locales
+- Translation key does not exist
+- No translation found for a key in the current locale
+- Locale not found, falling back to another
 
 ## Typescript
 

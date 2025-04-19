@@ -1,4 +1,0 @@
-hello: 'Howdy'
-world: 'World'
-name: 
-  hello: 'Howdy {{name}} {{emoji}}'

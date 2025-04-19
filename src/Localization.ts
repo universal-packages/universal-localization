@@ -1,113 +1,197 @@
-import { loadConfig } from '@universal-packages/config-loader'
 import { EventEmitter } from '@universal-packages/event-emitter'
-import { checkDirectory } from '@universal-packages/fs-utils'
-import { mapObject } from '@universal-packages/object-mapper'
-import { navigateObject } from '@universal-packages/object-navigation'
 import { replaceVars } from '@universal-packages/variable-replacer'
 
-import { Locale, LocalizationDictionary, LocalizationOptions } from './types'
+import { Dictionary, Locale, LocaleTranslations, LocalizationOptions, MergedDictionary, TemplateVariables, TranslationProxy } from './types'
 
-export default class Localization extends EventEmitter {
-  public readonly options: LocalizationOptions
-  public readonly dictionary: LocalizationDictionary = {}
+export default class Localization<T extends object = {}, S extends object = {}> extends EventEmitter {
+  public readonly options: LocalizationOptions<T, S>
+  public readonly dictionary: MergedDictionary<T, S>
+  public readonly availableLocales: Set<Locale> = new Set()
+  public readonly translate: TranslationProxy<T, S>
 
-  constructor(options?: LocalizationOptions) {
-    super()
-
-    this.options = { defaultLocale: 'en', useFileName: true, localizationsLocation: './src', ...options }
+  get locale(): Locale {
+    return this.internalLocale
   }
 
-  public prepare(): void {
-    const finalPath = checkDirectory(this.options.localizationsLocation)
-    const config = loadConfig(finalPath, { conventionPrefix: 'local' })
+  private internalLocale: Locale
 
-    mapObject(config, null, (value: Record<string, any>, key: string): boolean => {
-      if (key.match(/.*\.local$/)) {
-        const parts = key.split('.')
-        const isLocaleFromFilerName = parts[parts.length - 2].match(/^(..|..\-..)$/)
+  constructor(options: LocalizationOptions<T, S>) {
+    super()
 
-        if (isLocaleFromFilerName) {
-          const localeFromFilerName = parts[parts.length - 2]
+    this.options = { ...options }
 
-          if (!this.dictionary[localeFromFilerName]) this.dictionary[localeFromFilerName] = {}
+    this.dictionary = this.mergeDictionaries(this.options.primaryDictionary, this.options.secondaryDictionary)
 
-          if (this.options.useFileName) {
-            const keyFromFileName = parts.splice(0, parts.length - 2).join('.')
+    // Find all available locales in the dictionary
+    this.findAvailableLocales(this.dictionary)
 
-            if (!this.dictionary[localeFromFilerName][keyFromFileName]) this.dictionary[localeFromFilerName][keyFromFileName] = {}
+    // Validate if translations are missing for any locale
+    this.validateTranslations(this.dictionary)
 
-            this.dictionary[localeFromFilerName][keyFromFileName] = { ...this.dictionary[localeFromFilerName][keyFromFileName], ...value }
-          } else {
-            this.dictionary[localeFromFilerName] = { ...this.dictionary[localeFromFilerName], ...value }
-          }
-        } else {
-          const locales = Object.keys(value)
+    // Set the locale with smart fallback
+    this.setLocale(this.options.defaultLocale || 'en')
 
-          for (let i = 0; i < locales.length; i++) {
-            const currentLocale = locales[i]
+    // Create the translate proxy
+    this.translate = this.createTranslationProxy(this.dictionary) as TranslationProxy<T, S>
+  }
 
-            if (currentLocale.match(/^(..|..\-..)$/)) {
-              if (!this.dictionary[currentLocale]) this.dictionary[currentLocale] = {}
+  public static inferDefault(options: LocalizationOptions<any, any>): Locale {
+    const localization = new this(options)
+    return localization.locale
+  }
 
-              this.dictionary[currentLocale] = { ...this.dictionary[currentLocale], ...value[currentLocale] }
-            } else {
-              this.emit('error', { error: new Error(`Invalid locale "${currentLocale}" coming from "${key}"`) })
+  /**
+   * Create a proxy that mirrors the dictionary structure but with translate functions as leaf nodes
+   */
+  private createTranslationProxy<D>(dictionary: Dictionary<D>, path: string[] = []): TranslationProxy<D> {
+    return new Proxy({} as TranslationProxy<D>, {
+      get: (_target, key) => {
+        if (typeof key !== 'string') return undefined
+
+        const value = dictionary[key as keyof D]
+        const currentPath = [...path, key]
+
+        if (this.isLocaleTranslations(value)) {
+          // If it's a leaf node (translations), return a function
+          return (variables?: TemplateVariables) => {
+            const translation = (value as LocaleTranslations)[this.locale]
+
+            if (!translation) {
+              this.emit('warning', { message: `No translation found for key "${currentPath.join('.')}" in locale "${this.locale}"` })
+              return `[missing translation: ${currentPath.join('.')}]`
             }
+
+            if (variables) return replaceVars(translation, variables)
+
+            return translation
           }
+        } else if (value) {
+          // If it's a nested dictionary, create a nested proxy
+          return this.createTranslationProxy(value as Dictionary<any>, currentPath)
         }
 
-        return false
+        // If key doesn't exist
+        this.emit('warning', { message: `Translation key "${currentPath.join('.')}" does not exist in dictionary` })
+        return () => `[invalid key: ${currentPath.join('.')}]`
       }
     })
   }
 
-  public translate(subject: string | string[], locale?: Locale, locales?: Record<string, any>): string {
-    const finalLocale = locale ? locale : this.options.defaultLocale
+  private mergeDictionaries(primary: Dictionary<T>, secondary?: Dictionary<S>): MergedDictionary<T, S> {
+    if (!secondary) return primary as MergedDictionary<T, S>
+    return this.deepMerge(primary, secondary) as MergedDictionary<T, S>
+  }
 
-    let localeDictionary: Record<string, any> = this.dictionary[finalLocale]
+  private deepMerge(target: Dictionary<any>, source: Dictionary<any>): Dictionary<any> {
+    const output = { ...target }
 
-    if (!localeDictionary) {
-      const language = finalLocale.split('-')[0]
-      const dictionaryFromLanguage = this.dictionary[language]
-
-      if (dictionaryFromLanguage) {
-        localeDictionary = dictionaryFromLanguage
-
-        this.emit('warning', { message: `Missing locale "${finalLocale}", using "${language}" instead for "${subject}"` })
+    for (const key in source) {
+      if (source[key] instanceof Object && key in target && target[key] instanceof Object) {
+        output[key] = this.deepMerge(target[key] as Dictionary<any>, source[key] as Dictionary<any>)
       } else {
-        const availableLocales = Object.keys(this.dictionary)
-        const closestLocale = availableLocales.find((locale) => locale.startsWith(language)) || availableLocales[0]
-
-        if (closestLocale) {
-          localeDictionary = this.dictionary[closestLocale]
-
-          this.emit('warning', { message: `Missing locale "${finalLocale}", using "${closestLocale}" instead for "${subject}"` })
-        } else {
-          localeDictionary = {}
-
-          this.emit('error', { error: new Error(`Missing locale <${finalLocale}> and no fallback found for it`) })
-        }
+        output[key] = source[key]
       }
     }
 
-    const pathInfo = navigateObject(localeDictionary, subject, { separator: '.' })
+    return output
+  }
 
-    if (pathInfo.error) {
-      this.emit('warning', { message: `Missing translation for "${subject}" in "${finalLocale}"` })
-
-      return `missing <${pathInfo.path}>`
+  /**
+   * Set locale with smart fallback strategy
+   */
+  public setLocale(locale: Locale): void {
+    // If the locale exists in our translations, use it
+    if (this.availableLocales.has(locale)) {
+      this.internalLocale = locale
+      return
     }
 
-    const found = pathInfo.targetNode[pathInfo.targetKey]
-
-    if (typeof found === 'string') {
-      if (locales) return replaceVars(found, locales)
-
-      return found
-    } else {
-      this.emit('warning', { message: `Missing translation for "${subject}" in "${finalLocale}"` })
-
-      return `missing <${pathInfo.path}>`
+    // Try to find the base language (e.g., 'en' from 'en-US')
+    const baseLanguage = locale.split('-')[0] as Locale
+    if (this.availableLocales.has(baseLanguage)) {
+      this.emit('warning', { message: `Locale "${locale}" not found, falling back to base language "${baseLanguage}"` })
+      this.internalLocale = baseLanguage
+      return
     }
+
+    // Try to find any variant of the base language (e.g., any 'en-XX')
+    const baseVariants = Array.from(this.availableLocales).filter((l) => l.startsWith(`${baseLanguage}-`))
+    if (baseVariants.length > 0) {
+      this.emit('warning', { message: `Base language "${baseLanguage}" not found, falling back to variant "${baseVariants[0]}"` })
+      this.internalLocale = baseVariants[0]
+      return
+    }
+
+    // As a last resort, use any available locale
+    if (this.availableLocales.size > 0) {
+      const fallbackLocale = Array.from(this.availableLocales)[0]
+      this.emit('warning', { message: `No "${baseLanguage}" or variants found, falling back to "${fallbackLocale}"` })
+      this.internalLocale = fallbackLocale
+      return
+    }
+
+    // No translations available at all
+    this.emit('warning', { message: 'No localizations found in dictionary' })
+    this.internalLocale = locale // Keep the requested locale even though it won't work
+  }
+
+  /**
+   * Find all available locales in the dictionary
+   */
+  private findAvailableLocales(dictionary: Dictionary<T>, path: string = ''): void {
+    for (const key in dictionary) {
+      const value = dictionary[key]
+      const currentPath = path ? `${path}.${key}` : key
+
+      if (this.isLocaleTranslations(value)) {
+        // Found translations, add all locales to the set
+        for (const locale in value) {
+          this.availableLocales.add(locale as Locale)
+        }
+      } else {
+        // Recurse into nested dictionaries
+        this.findAvailableLocales(value as Dictionary<T>, currentPath)
+      }
+    }
+  }
+
+  /**
+   * Validate if translations are missing for any locale
+   */
+  private validateTranslations(dictionary: Dictionary<T>, path: string = ''): void {
+    for (const key in dictionary) {
+      const value = dictionary[key]
+      const currentPath = path ? `${path}.${key}` : key
+
+      if (this.isLocaleTranslations(value)) {
+        // Check if any locale is missing
+        const translations = value as LocaleTranslations
+        const missingLocales = Array.from(this.availableLocales).filter((locale) => !(locale in translations))
+
+        if (missingLocales.length > 0) {
+          this.emit('warning', { message: `Translation key "${currentPath}" is missing translations for locales: ${missingLocales.join(', ')}` })
+        }
+      } else {
+        // Recurse into nested dictionaries
+        this.validateTranslations(value as Dictionary<any>, currentPath)
+      }
+    }
+  }
+
+  /**
+   * Type guard to check if an object is a LocaleTranslations
+   */
+  private isLocaleTranslations(obj: any): obj is LocaleTranslations {
+    if (!obj || typeof obj !== 'object') return false
+
+    // Check if at least one key is a valid locale
+    for (const key in obj) {
+      // If the value is a string and the key is in our Locale type
+      if (typeof obj[key] === 'string') {
+        return true
+      }
+    }
+
+    return false
   }
 }

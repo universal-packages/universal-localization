@@ -1,4 +1,0 @@
-hello: 'Que onda'
-world: 'Mundo'
-name: 
-  hello: 'Que onda {{name}} {{emoji}}'

@@ -1,139 +1,505 @@
-import { Localization } from '../src'
+import Localization from '../src/Localization'
+
+const primaryDictionary = {
+  hello: {
+    en: 'Hello',
+    'en-US': 'Howdy',
+    es: 'Hola',
+    'es-MX': 'Que onda',
+    'fr-CM': 'Bonjour'
+  },
+  world: {
+    en: 'World',
+    'en-US': 'World',
+    es: 'Mundo',
+    'es-MX': 'Mundo',
+    'fr-CM': 'Monde'
+  },
+  name: {
+    hello: {
+      en: 'Hello {{name}} {{emoji}}',
+      'en-US': 'Howdy {{name}} {{emoji}}',
+      es: 'Hola {{name}} {{emoji}}',
+      'es-MX': 'Que onda {{name}} {{emoji}}',
+      'fr-CM': 'Bonjour {{name}} {{emoji}}'
+    }
+  }
+}
+
+const secondaryDictionary = {
+  goodbye: {
+    en: 'Goodbye',
+    'en-US': 'Bye',
+    es: 'Adiós',
+    'es-MX': 'Camara',
+    'fr-CM': 'Au revoir'
+  },
+  deep: {
+    nested: {
+      key: {
+        en: 'Deep nested key',
+        'en-US': 'Deep nested key',
+        es: 'Clave anidada profunda',
+        'es-MX': 'Clave nesteada profunda',
+        'fr-CM': 'Clé imbriquée profonde'
+      }
+    }
+  }
+}
+
+const incompleteDictionary = {
+  hello: {
+    en: 'Hello',
+    'en-US': 'Howdy',
+    es: 'Hola'
+  },
+  world: {
+    en: 'World',
+    'fr-CM': 'Monde'
+  }
+}
 
 describe(Localization, (): void => {
-  it('loads the dictionary', async (): Promise<void> => {
-    const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
+  describe('initialization', (): void => {
+    it('should initialize with primary dictionary', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary })
+      expect(localization.dictionary).toEqual(primaryDictionary)
+      expect(localization.locale).toEqual('en')
+    })
 
-    localization.prepare()
+    it('should merge dictionaries when both are provided', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary, secondaryDictionary })
+      expect(localization.dictionary).toHaveProperty('hello')
+      expect(localization.dictionary).toHaveProperty('goodbye')
+    })
 
-    expect(localization.dictionary).toEqual({
-      en: { first: { hello: 'Hello', world: 'World', name: { hello: 'Hello {{name}} {{emoji}}' } }, second: { door: 'Door' }, light: 'Light' },
-      'en-US': { first: { hello: 'Howdy', world: 'World', name: { hello: 'Howdy {{name}} {{emoji}}' } } },
-      es: { first: { hello: 'Hola', world: 'Mundo', name: { hello: 'Hola {{name}} {{emoji}}' } }, second: { door: 'Puerta' }, third: { light: 'Luz' } },
-      'es-MX': { first: { hello: 'Que onda', world: 'Mundo', name: { hello: 'Que onda {{name}} {{emoji}}' } } },
-      'fr-CM': { first: { hello: 'Bonjour', world: 'Monde', name: { hello: 'Bonjour {{name}} {{emoji}}' } } }
+    it('should use default locale when provided', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary, defaultLocale: 'es' })
+      expect(localization.locale).toEqual('es')
     })
   })
 
-  it('loads the dictionary ignoring file name as root key', async (): Promise<void> => {
-    const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good', useFileName: false })
+  describe('locale selection and fallback', (): void => {
+    it('should fallback to base language if specific variant not found', (): void => {
+      const warningSpy = jest.spyOn(Localization.prototype, 'emit')
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary, defaultLocale: 'en-GB' })
 
-    localization.prepare()
+      expect(localization.locale).toEqual('en')
+      expect(warningSpy).toHaveBeenCalledWith(
+        'warning',
+        expect.objectContaining({
+          message: 'Locale "en-GB" not found, falling back to base language "en"'
+        })
+      )
 
-    expect(localization.dictionary).toEqual({
-      en: { hello: 'Hello', world: 'World', name: { hello: 'Hello {{name}} {{emoji}}' }, door: 'Door', light: 'Light' },
-      'en-US': { hello: 'Howdy', world: 'World', name: { hello: 'Howdy {{name}} {{emoji}}' } },
-      es: { hello: 'Hola', world: 'Mundo', name: { hello: 'Hola {{name}} {{emoji}}' }, door: 'Puerta', light: 'Luz' },
-      'es-MX': { hello: 'Que onda', world: 'Mundo', name: { hello: 'Que onda {{name}} {{emoji}}' } },
-      'fr-CM': { hello: 'Bonjour', world: 'Monde', name: { hello: 'Bonjour {{name}} {{emoji}}' } }
+      warningSpy.mockRestore()
+    })
+
+    it('should fallback to any language variant if base not found', (): void => {
+      const warningSpy = jest.spyOn(Localization.prototype, 'emit')
+      // Create dictionary with only 'fr-CM' but no 'fr'
+      const frenchOnlyDictionary = {
+        hello: { 'fr-CM': 'Bonjour' }
+      }
+      const localization = new Localization<typeof frenchOnlyDictionary>({ primaryDictionary: frenchOnlyDictionary, defaultLocale: 'fr' })
+
+      expect(localization.locale).toEqual('fr-CM')
+      expect(warningSpy).toHaveBeenCalledWith(
+        'warning',
+        expect.objectContaining({
+          message: 'Base language "fr" not found, falling back to variant "fr-CM"'
+        })
+      )
+
+      warningSpy.mockRestore()
+    })
+
+    it('should fallback to any available locale if no matching language found', (): void => {
+      const warningSpy = jest.spyOn(Localization.prototype, 'emit')
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary, defaultLocale: 'ja' })
+
+      // It will pick any available locale (likely 'en' as first in our dictionary)
+      expect(localization.locale).toBeTruthy()
+      expect(warningSpy).toHaveBeenCalledWith(
+        'warning',
+        expect.objectContaining({
+          message: 'No "ja" or variants found, falling back to "en"'
+        })
+      )
+
+      warningSpy.mockRestore()
     })
   })
 
-  it('emits error if a locale can be inferred from the file name nor any of the keys inside seem to be locales', async (): Promise<void> => {
-    const localization = new Localization({ localizationsLocation: './tests/__fixtures__/bad' })
-    const errorMock = jest.fn()
+  describe('validation', (): void => {
+    it('should detect missing translations', (): void => {
+      const warningSpy = jest.spyOn(Localization.prototype, 'emit')
+      const localization = new Localization<typeof incompleteDictionary>({ primaryDictionary: incompleteDictionary })
 
-    localization.on('error', errorMock)
+      expect(warningSpy).toHaveBeenCalledWith(
+        'warning',
+        expect.objectContaining({
+          message: 'Translation key "hello" is missing translations for locales: fr-CM'
+        })
+      )
+      expect(warningSpy).toHaveBeenCalledWith(
+        'warning',
+        expect.objectContaining({
+          message: 'Translation key "world" is missing translations for locales: en-US, es'
+        })
+      )
 
-    localization.prepare()
+      warningSpy.mockRestore()
+    })
 
-    expect(errorMock.mock.calls).toEqual([
-      [{ event: 'error', error: new Error('Invalid locale "hello" coming from "first.local"') }],
-      [{ event: 'error', error: new Error('Invalid locale "world" coming from "first.local"') }],
-      [{ event: 'error', error: new Error('Invalid locale "name" coming from "first.local"') }]
-    ])
+    it('should emit error when no translations found', (): void => {
+      const errorSpy = jest.spyOn(Localization.prototype, 'emit')
+      const localization = new Localization<{}>({ primaryDictionary: {} })
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        'warning',
+        expect.objectContaining({
+          message: 'No localizations found in dictionary'
+        })
+      )
+
+      errorSpy.mockRestore()
+    })
   })
 
-  it('translates by using the default or use the provided one', async (): Promise<void> => {
-    const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
+  describe('setLocale', (): void => {
+    it('should allow changing locale after initialization', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary })
+      expect(localization.locale).toEqual('en')
 
-    localization.prepare()
-
-    expect(localization.options.defaultLocale).toEqual('en')
-    expect(localization.translate('first.hello')).toEqual('Hello')
-    expect(localization.translate('first.world')).toEqual('World')
-    expect(localization.translate('first.name.hello', null, { name: 'John', emoji: '👋' })).toEqual('Hello John 👋')
-
-    expect(localization.translate('first.hello', 'en-US')).toEqual('Howdy')
-    expect(localization.translate('first.world', 'en-US')).toEqual('World')
-    expect(localization.translate('first.name.hello', 'en-US', { name: 'John', emoji: '👋' })).toEqual('Howdy John 👋')
-
-    expect(localization.translate('first.hello', 'es')).toEqual('Hola')
-    expect(localization.translate('first.world', 'es')).toEqual('Mundo')
-    expect(localization.translate('first.name.hello', 'es', { name: 'Juan', emoji: '👋' })).toEqual('Hola Juan 👋')
-
-    expect(localization.translate('first.hello', 'es-MX')).toEqual('Que onda')
-    expect(localization.translate('first.world', 'es-MX')).toEqual('Mundo')
-    expect(localization.translate('first.name.hello', 'es-MX', { name: 'Juanito', emoji: '👋' })).toEqual('Que onda Juanito 👋')
+      localization.setLocale('es-MX')
+      expect(localization.locale).toEqual('es-MX')
+    })
   })
 
-  it('translate by using the closest locale when the locale is not found', async (): Promise<void> => {
-    const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
-    const warningMock = jest.fn()
+  describe('translate', (): void => {
+    it('should translate basic strings', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary })
+      expect(localization.translate.hello()).toEqual('Hello')
+      expect(localization.translate.world()).toEqual('World')
+    })
 
-    localization.prepare()
+    it('should translate nested keys', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary })
+      expect(localization.translate.name.hello({ name: 'Ana', emoji: ':)' })).toEqual('Hello Ana :)')
+    })
 
-    localization.on('warning', warningMock)
+    it('should respect the current locale', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary, defaultLocale: 'es' })
+      expect(localization.translate.hello()).toEqual('Hola')
+      expect(localization.translate.world()).toEqual('Mundo')
+      expect(localization.translate.name.hello({ name: 'Ana', emoji: ':)' })).toEqual('Hola Ana :)')
+    })
 
-    expect(localization.translate('first.hello', 'fr-CM')).toEqual('Bonjour')
-    expect(localization.translate('first.world', 'fr-CM')).toEqual('Monde')
-    expect(localization.translate('first.name.hello', 'fr-CM', { name: 'Jean', emoji: '👋' })).toEqual('Bonjour Jean 👋')
+    it('should update translations when locale changes', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary })
+      expect(localization.translate.hello()).toEqual('Hello')
 
-    expect(localization.translate('first.hello', 'fr')).toEqual('Bonjour')
-    expect(localization.translate('first.world', 'fr')).toEqual('Monde')
-    expect(localization.translate('first.name.hello', 'fr', { name: 'Jean', emoji: '👋' })).toEqual('Bonjour Jean 👋')
+      localization.setLocale('es-MX')
+      expect(localization.translate.hello()).toEqual('Que onda')
+    })
 
-    expect(localization.translate('first.hello', 'es-AR')).toEqual('Hola')
-    expect(localization.translate('first.world', 'es-AR')).toEqual('Mundo')
-    expect(localization.translate('first.name.hello', 'es-AR', { name: 'Juan', emoji: '👋' })).toEqual('Hola Juan 👋')
+    it('should handle missing translations keys', (): void => {
+      const warningSpy = jest.spyOn(Localization.prototype, 'emit')
+      // Define dictionary type with only 'hello' key
+      type MinimalDict = {
+        hello: {
+          en: string
+        }
+      }
 
-    expect(warningMock.mock.calls).toEqual([
-      [{ event: 'warning', message: 'Missing locale "fr", using "fr-CM" instead for "first.hello"' }],
-      [{ event: 'warning', message: 'Missing locale "fr", using "fr-CM" instead for "first.world"' }],
-      [{ event: 'warning', message: 'Missing locale "fr", using "fr-CM" instead for "first.name.hello"' }],
-      [{ event: 'warning', message: 'Missing locale "es-AR", using "es" instead for "first.hello"' }],
-      [{ event: 'warning', message: 'Missing locale "es-AR", using "es" instead for "first.world"' }],
-      [{ event: 'warning', message: 'Missing locale "es-AR", using "es" instead for "first.name.hello"' }]
-    ])
+      const minimalDictionary: MinimalDict = {
+        hello: { en: 'Hello' }
+      }
+
+      const localization = new Localization<MinimalDict>({
+        primaryDictionary: minimalDictionary
+      })
+
+      // This should work
+      expect(localization.translate.hello()).toEqual('Hello')
+
+      // We need this for runtime testing of non-existent keys
+      // Accessing a non-existent key at runtime through index access
+      const nonExistentTranslationFn = (localization.translate as any)['nonExistentKey']
+      expect(nonExistentTranslationFn()).toEqual('[invalid key: nonExistentKey]')
+
+      expect(warningSpy).toHaveBeenCalledWith(
+        'warning',
+        expect.objectContaining({
+          message: 'Translation key "nonExistentKey" does not exist in dictionary'
+        })
+      )
+
+      warningSpy.mockRestore()
+    })
+
+    it('should handle missing locale translations', (): void => {
+      const warningSpy = jest.spyOn(Localization.prototype, 'emit')
+      type EnOnlyDict = {
+        hello: {
+          en: string
+        }
+        world: {
+          en: string
+          es: string
+        }
+      }
+
+      const enOnlyDictionary: EnOnlyDict = {
+        hello: { en: 'Hello' },
+        world: { en: 'World', es: 'Mundo' }
+      }
+
+      const localization = new Localization<EnOnlyDict>({
+        primaryDictionary: enOnlyDictionary
+      })
+
+      localization.setLocale('es')
+
+      // This should fallback to 'en' and emit a warning
+      expect(localization.translate.hello()).toEqual('[missing translation: hello]')
+      expect(warningSpy).toHaveBeenCalledWith(
+        'warning',
+        expect.objectContaining({
+          message: 'No translation found for key "hello" in locale "es"'
+        })
+      )
+      warningSpy.mockRestore()
+    })
+
+    it('should replace template variables', (): void => {
+      type GreetingDict = {
+        greeting: {
+          en: string
+        }
+      }
+
+      const greetingDictionary: GreetingDict = {
+        greeting: {
+          en: 'Hello {{name}}, today is {{day}}!'
+        }
+      }
+
+      const localization = new Localization<GreetingDict>({
+        primaryDictionary: greetingDictionary
+      })
+
+      expect(localization.translate.greeting({ name: 'John', day: 'Monday' })).toEqual('Hello John, today is Monday!')
+    })
   })
 
-  it('translate by using the first found locale if no locale can by found closest to the requested one', async (): Promise<void> => {
-    const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
-    const warningMock = jest.fn()
+  describe('secondary dictionary', (): void => {
+    it('should properly type and access translations from both dictionaries', (): void => {
+      // Explicitly define the types for both dictionaries
+      const localization = new Localization<typeof primaryDictionary, typeof secondaryDictionary>({
+        primaryDictionary,
+        secondaryDictionary
+      })
 
-    localization.prepare()
+      // Access primary dictionary keys
+      expect(localization.translate.hello()).toEqual('Hello')
+      expect(localization.translate.name.hello({ name: 'Ana', emoji: ':)' })).toEqual('Hello Ana :)')
 
-    localization.on('warning', warningMock)
+      // Access secondary dictionary keys
+      expect(localization.translate.goodbye()).toEqual('Goodbye')
+      expect(localization.translate.deep.nested.key()).toEqual('Deep nested key')
 
-    expect(localization.translate('first.hello', 'ar')).toEqual('Howdy')
-    expect(localization.translate('first.world', 'ar')).toEqual('World')
-    expect(localization.translate('first.name.hello', 'ar', { name: 'John', emoji: '👋' })).toEqual('Howdy John 👋')
-
-    expect(warningMock.mock.calls).toEqual([
-      [{ event: 'warning', message: 'Missing locale "ar", using "en-US" instead for "first.hello"' }],
-      [{ event: 'warning', message: 'Missing locale "ar", using "en-US" instead for "first.world"' }],
-      [{ event: 'warning', message: 'Missing locale "ar", using "en-US" instead for "first.name.hello"' }]
-    ])
+      // Change locale should apply to both dictionaries
+      localization.setLocale('es')
+      expect(localization.translate.hello()).toEqual('Hola')
+      expect(localization.translate.goodbye()).toEqual('Adiós')
+      expect(localization.translate.deep.nested.key()).toEqual('Clave anidada profunda')
+    })
   })
 
-  it('returns the same subject when no translation exists', async (): Promise<void> => {
-    const localization = new Localization({ localizationsLocation: './tests/__fixtures__/good' })
-    const warningMock = jest.fn()
+  describe('non-string key access', (): void => {
+    it('should handle Symbol keys in the proxy', (): void => {
+      const localization = new Localization<typeof primaryDictionary>({ primaryDictionary })
 
-    localization.prepare()
+      // Access the translate proxy with a Symbol key - should return undefined
+      const symbol = Symbol('test')
+      const result = (localization.translate as any)[symbol]
 
-    localization.on('warning', warningMock)
+      expect(result).toBeUndefined()
+    })
 
-    expect(localization.translate('foo')).toEqual('missing <foo>')
-    expect(localization.translate('foo.bar')).toEqual('missing <foo.bar>')
-    expect(localization.translate('foo.bar.baz')).toEqual('missing <foo.bar.baz>')
-    expect(localization.translate('name', null, { name: 'John', emoji: '👋' })).toEqual('missing <name>')
+    it('should handle numeric keys in the proxy', (): void => {
+      const numericDictionary = {
+        '123': {
+          en: 'Numeric key',
+          es: 'Clave numérica'
+        }
+      }
 
-    expect(warningMock.mock.calls).toEqual([
-      [{ event: 'warning', message: 'Missing translation for "foo" in "en"' }],
-      [{ event: 'warning', message: 'Missing translation for "foo.bar" in "en"' }],
-      [{ event: 'warning', message: 'Missing translation for "foo.bar.baz" in "en"' }],
-      [{ event: 'warning', message: 'Missing translation for "name" in "en"' }]
-    ])
+      const localization = new Localization<typeof numericDictionary>({ primaryDictionary: numericDictionary })
+
+      // This is actually a string key when used with bracket notation
+      expect(localization.translate['123']()).toEqual('Numeric key')
+
+      // JavaScript coerces numeric object keys to strings, so this actually works
+      // and returns the same value as the string key
+      const result = (localization.translate as any)[123]()
+      expect(result).toEqual('Numeric key')
+    })
+  })
+
+  describe('deep merge with nested objects', (): void => {
+    it('should deeply merge nested objects in primary and secondary dictionaries', (): void => {
+      const nestedPrimary = {
+        settings: {
+          options: {
+            en: 'Options',
+            es: 'Opciones'
+          },
+          theme: {
+            en: 'Theme',
+            es: 'Tema'
+          }
+        }
+      }
+
+      const nestedSecondary = {
+        settings: {
+          options: {
+            fr: 'Options FR'
+          },
+          colors: {
+            en: 'Colors',
+            es: 'Colores',
+            fr: 'Couleurs'
+          }
+        }
+      }
+
+      const localization = new Localization<typeof nestedPrimary, typeof nestedSecondary>({
+        primaryDictionary: nestedPrimary,
+        secondaryDictionary: nestedSecondary
+      })
+
+      // Original keys from primary should be intact
+      expect(localization.translate.settings.theme()).toEqual('Theme')
+
+      // Secondary keys should be merged
+      expect((localization.translate as any).settings.colors()).toEqual('Colors')
+
+      // Original primary values should be intact
+      expect(localization.translate.settings.options()).toEqual('Options')
+
+      // Switch to French to see merged values
+      localization.setLocale('fr')
+
+      // This should now return the French version from secondary
+      expect(localization.translate.settings.options()).toEqual('Options FR')
+
+      // Secondary French values should be available
+      expect((localization.translate as any).settings.colors()).toEqual('Couleurs')
+
+      // Original primary keys with no French shold warn the user
+      expect(localization.translate.settings.theme()).toEqual('[missing translation: settings.theme]')
+    })
+
+    it('should handle complex nested merges with overlapping keys', (): void => {
+      const complexPrimary = {
+        deep: {
+          nested: {
+            structure: {
+              en: 'Structure',
+              es: 'Estructura'
+            },
+            level1: {
+              level2: {
+                en: 'Level 2',
+                es: 'Nivel 2'
+              }
+            }
+          }
+        }
+      }
+
+      const complexSecondary = {
+        deep: {
+          nested: {
+            structure: {
+              fr: 'Structure FR'
+            },
+            level1: {
+              level2: {
+                fr: 'Niveau 2'
+              },
+              newKey: {
+                en: 'New Key',
+                fr: 'Nouvelle Clé'
+              }
+            }
+          },
+          additional: {
+            en: 'Additional',
+            fr: 'Supplémentaire'
+          }
+        }
+      }
+
+      const localization = new Localization<typeof complexPrimary, typeof complexSecondary>({
+        primaryDictionary: complexPrimary,
+        secondaryDictionary: complexSecondary
+      })
+
+      // Check merged access first level
+      expect((localization.translate as any).deep.additional()).toEqual('Additional')
+
+      // Check deep nested merged keys
+      expect((localization.translate as any).deep.nested.level1.newKey()).toEqual('New Key')
+
+      // Check merged translations when switching locale
+      localization.setLocale('fr')
+
+      // This should access the French version from secondary
+      expect(localization.translate.deep.nested.structure()).toEqual('Structure FR')
+
+      // This should access deep nested French version
+      expect((localization.translate as any).deep.nested.level1.level2()).toEqual('Niveau 2')
+    })
+  })
+
+  describe('inferDefault static method', (): void => {
+    it('should return the default locale without requiring a full instance', (): void => {
+      const locale = Localization.inferDefault({ primaryDictionary })
+      expect(locale).toEqual('en')
+    })
+
+    it('should respect provided defaultLocale', (): void => {
+      const locale = Localization.inferDefault({ primaryDictionary, defaultLocale: 'es' })
+      expect(locale).toEqual('es')
+    })
+
+    it('should apply fallback logic for unavailable locales', (): void => {
+      const locale = Localization.inferDefault({ primaryDictionary, defaultLocale: 'en-GB' })
+      expect(locale).toEqual('en')
+    })
+
+    it('should fallback to base variants when base language not available', (): void => {
+      // Dictionary with only 'fr-CM' but no 'fr'
+      const frenchOnlyDictionary = {
+        hello: { 'fr-CM': 'Bonjour' }
+      }
+
+      const locale = Localization.inferDefault({
+        primaryDictionary: frenchOnlyDictionary,
+        defaultLocale: 'fr'
+      })
+
+      expect(locale).toEqual('fr-CM')
+    })
+
+    it('should use first available locale when requested language has no match', (): void => {
+      const locale = Localization.inferDefault({ primaryDictionary, defaultLocale: 'ja' })
+      expect(locale).toEqual('en')
+    })
   })
 })
